@@ -2,18 +2,22 @@ package vngcloud
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/cuongpiger/joat/utils"
-	"github.com/vngcloud/vngcloud-controller-manager/pkg/client"
-	lvconCcmMetrics "github.com/vngcloud/vngcloud-controller-manager/pkg/metrics"
-	"github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
+	gcfg "gopkg.in/gcfg.v1"
+	lcloudProvider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
+
 	client2 "github.com/vngcloud/vngcloud-go-sdk/client"
 	lvconSdkErr "github.com/vngcloud/vngcloud-go-sdk/error/utils"
 	"github.com/vngcloud/vngcloud-go-sdk/vngcloud"
 	lPortal "github.com/vngcloud/vngcloud-go-sdk/vngcloud/services/portal/v1"
-	gcfg "gopkg.in/gcfg.v1"
-	"io"
-	lcloudProvider "k8s.io/cloud-provider"
-	"k8s.io/klog/v2"
+
+	"github.com/vngcloud/vngcloud-controller-manager/pkg/client"
+	lvconCcmMetrics "github.com/vngcloud/vngcloud-controller-manager/pkg/metrics"
+	"github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
+	"github.com/vngcloud/vngcloud-controller-manager/pkg/version"
 )
 
 // ************************************************* PUBLIC FUNCTIONS **************************************************
@@ -35,6 +39,10 @@ func NewVContainer(pCfg Config) (*VContainer, error) {
 		klog.Errorf("failed to setup portal info: %v", err)
 		return nil, err
 	}
+
+	provider.SetUserAgent(fmt.Sprintf(
+		"vngcloud-controller-manager/%s (ChartVersion/%s)",
+		version.Version, pCfg.Metadata.ChartVersion))
 
 	return &VContainer{
 		provider:  provider,

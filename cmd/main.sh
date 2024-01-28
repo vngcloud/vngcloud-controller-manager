@@ -13,7 +13,7 @@ go_tidy() {
   requirements=$(cat $(pwd)/requirements.txt)
 
   cat <<EOF > go.mod
-module github.com/cuongpiger/vcontainer-ccm
+module github.com/vngcloud/vngcloud-controller-manager
 
 go 1.21
 
