@@ -1,0 +1,12 @@
+github.com/go-logr/logr v1.3.0/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
+github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
+github.com/vngcloud/vcontainer-sdk v0.1.2-0.20240114051558-7e6357a05ab1/go.mod h1:RWXuT91DXam0KylY1+gP3/goK9q99+bCcxU/OQxWC84=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240126062419-49c79a22ce04 h1:gSrjYxZR2+fSWIxz/Soxw7IGy57XTIwBk408FLI0dow=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240126062419-49c79a22ce04/go.mod h1:lkDrZ0IdL8jD0lub/mMZ3CVexZc/IkT5faIT92c3fNA=
+gopkg.in/gcfg.v1 v1.2.3/go.mod h1:yesOnuUOFQAhST5vPY4nbZsb/huCgGGXlipJsBn0b3o=
+k8s.io/api v0.29.0/go.mod h1:sdVmXoz2Bo/cb77Pxi71IPTSErEW32xa4aXwKH7gfBA=
+k8s.io/apimachinery v0.29.0/go.mod h1:eVBxQ/cwiJxH58eK/jd/vAk4mrxmVlnpBH5J2GbMeis=
+k8s.io/client-go v0.29.0/go.mod h1:yLkXH4HKMAywcrD82KMSmfYg2DlE8mepPR4JGSo5n38=
+k8s.io/cloud-provider v0.29.0/go.mod h1:gBCt7YYKFV4oUcJ/0xF9lS/9il4MxKunJ+ZKvh39WGo=
+k8s.io/component-base v0.29.0/go.mod h1:sADonFTQ9Zc9yFLghpDpmNXEdHyQmFIGbiuZbqAXQ1M=
+k8s.io/klog/v2 v2.110.1/go.mod h1:YGtd1984u+GgbuZ7e08/yBuAfKLSO0+uR1Fhi6ExXjo=

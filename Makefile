@@ -115,7 +115,8 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-# Build a single image for the local default platform and push to the local container engine
+# Build a single image for the local default platform and push to the local
+# container engine
 build-image-%:
 	$(CONTAINER_ENGINE) buildx build --output type=docker \
 		--build-arg VERSION=$(VERSION) \
