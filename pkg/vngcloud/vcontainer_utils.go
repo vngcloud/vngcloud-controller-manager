@@ -55,7 +55,6 @@ func NewVContainer(pCfg Config) (*VContainer, error) {
 // ************************************************* PRIVATE FUNCTIONS *************************************************
 
 func init() {
-	fmt.Println("CUONGDM3: init the vcontainer-ccm")
 	// Register metrics
 	lvconCcmMetrics.RegisterMetrics("vcontainer-ccm")
 
