@@ -2,6 +2,7 @@ package vngcloud
 
 import (
 	"fmt"
+
 	"github.com/cuongpiger/joat/utils"
 	metadata2 "github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
 	vconSdkClient "github.com/vngcloud/vngcloud-go-sdk/client"
@@ -26,6 +27,7 @@ type (
 		kubeClient       kubernetes.Interface
 		eventBroadcaster record.EventBroadcaster
 		eventRecorder    record.EventRecorder
+		vlb              *vLB
 	}
 
 	ExtraInfo struct {
@@ -45,7 +47,7 @@ func (s *VContainer) Initialize(clientBuilder lcloudProvider.ControllerClientBui
 }
 
 func (s *VContainer) LoadBalancer() (lcloudProvider.LoadBalancer, bool) {
-	klog.V(4).Info("Set up LoadBalancer service for vcontainer-ccm")
+	klog.V(4).Info("Set up LoadBalancer service for vngcloud-controller-manager")
 
 	// Prepare the client for vLB
 	vlb, _ := vngcloud.NewServiceClient(
@@ -56,14 +58,18 @@ func (s *VContainer) LoadBalancer() (lcloudProvider.LoadBalancer, bool) {
 		utils.NormalizeURL(s.getVServerURL())+"vserver-gateway/v2",
 		s.provider, "vserver-gateway")
 
-	return &vLB{
+	lb := &vLB{
 		vLbSC:         vlb,
 		vServerSC:     vserver,
 		kubeClient:    s.kubeClient,
 		eventRecorder: s.eventRecorder,
 		extraInfo:     s.extraInfo,
 		vLbConfig:     s.vLbOpts,
-	}, true
+		trackLBUpdate: NewUpdateTracker(),
+	}
+	go lb.Init()
+	s.vlb = lb
+	return lb, true
 }
 
 func (s *VContainer) Instances() (lcloudProvider.Instances, bool) {

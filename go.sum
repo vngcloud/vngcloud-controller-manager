@@ -205,6 +205,10 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 h1:6fotK7
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75/go.mod h1:KO6IkyS8Y3j8OdNO85qEYBsRPuteD+YciPomcXdrMnk=
 github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240128062127-7bb8487f0d05 h1:VX8UXa/cd9ROFP2PwYkJG9ckQ4qNEb4gvy1OoMiprm8=
 github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240128062127-7bb8487f0d05/go.mod h1:lkDrZ0IdL8jD0lub/mMZ3CVexZc/IkT5faIT92c3fNA=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240318155642-520fc75eedb1 h1:KoDAAGK9uj6KmUmbdvIR179QP37eq3/Tc8bs07zRnQ0=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240318155642-520fc75eedb1/go.mod h1:ooZo+kYuaDbn1HzS8KUEORKGj68yEtDx1XLJU06Xw4k=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240319100753-40d72148ed5d h1:3LE7xzWmPe4feQ/kbl48G3VMpWc7ccugiq1YpHePHmE=
+github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240319100753-40d72148ed5d/go.mod h1:ooZo+kYuaDbn1HzS8KUEORKGj68yEtDx1XLJU06Xw4k=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 h1:eY9dn8+vbi4tKz5Qo6v2eYzo7kUS51QINcR5jNpbZS8=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

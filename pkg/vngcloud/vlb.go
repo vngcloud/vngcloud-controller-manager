@@ -4,6 +4,7 @@ import (
 	lCtx "context"
 	"fmt"
 	lStr "strings"
+	"time"
 
 	lCoreV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -26,6 +27,10 @@ import (
 	lUtils "github.com/vngcloud/vngcloud-controller-manager/pkg/utils"
 	lErrors "github.com/vngcloud/vngcloud-controller-manager/pkg/utils/errors"
 	lMetadata "github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type (
@@ -58,6 +63,15 @@ type (
 		eventRecorder record.EventRecorder
 		vLbConfig     VLbOpts
 		extraInfo     *ExtraInfo
+		trackLBUpdate *UpdateTracker
+		clusterID     string
+
+		serviceLister       corelisters.ServiceLister
+		serviceListerSynced cache.InformerSynced
+		nodeLister          corelisters.NodeLister
+		nodeListerSynced    cache.InformerSynced
+		stopCh              chan struct{}
+		informer            informers.SharedInformerFactory
 	}
 
 	// Config is the configuration for the VNG CLOUD load balancer controller,
@@ -102,9 +116,35 @@ type (
 	}
 )
 
+func (s *vLB) Init() {
+	kubeInformerFactory := informers.NewSharedInformerFactory(s.kubeClient, time.Second*30)
+	serviceInformer := kubeInformerFactory.Core().V1().Services()
+	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
+
+	s.nodeLister = nodeInformer.Lister()
+	s.nodeListerSynced = nodeInformer.Informer().HasSynced
+	s.serviceLister = serviceInformer.Lister()
+	s.serviceListerSynced = serviceInformer.Informer().HasSynced
+	s.stopCh = make(chan struct{})
+	s.informer = kubeInformerFactory
+
+	defer close(s.stopCh)
+	go s.informer.Start(s.stopCh)
+
+	// wait for the caches to synchronize before starting the worker
+	if !cache.WaitForCacheSync(s.stopCh, s.serviceListerSynced, s.nodeListerSynced) {
+		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
+		return
+	}
+
+	go wait.Until(s.nodeSyncLoop, 60*time.Second, s.stopCh)
+	<-s.stopCh
+}
+
 // ****************************** IMPLEMENTATIONS OF KUBERNETES CLOUD PROVIDER INTERFACE *******************************
 
 func (s *vLB) GetLoadBalancer(pCtx lCtx.Context, pClusterID string, pService *lCoreV1.Service) (*lCoreV1.LoadBalancerStatus, bool, error) {
+	s.clusterID = pClusterID
 	mc := lMetrics.NewMetricContext("loadbalancer", "ensure")
 	klog.InfoS("GetLoadBalancer", "cluster", pClusterID, "service", klog.KObj(pService))
 	status, existed, err := s.ensureGetLoadBalancer(pCtx, pClusterID, pService)
@@ -112,12 +152,13 @@ func (s *vLB) GetLoadBalancer(pCtx lCtx.Context, pClusterID string, pService *lC
 }
 
 func (s *vLB) GetLoadBalancerName(_ lCtx.Context, pClusterID string, pService *lCoreV1.Service) string {
+	s.clusterID = pClusterID
 	return lUtils.GenCompleteLoadBalancerName(pClusterID, pService)
 }
 
 func (s *vLB) EnsureLoadBalancer(
 	pCtx lCtx.Context, pClusterID string, pService *lCoreV1.Service, pNodes []*lCoreV1.Node) (*lCoreV1.LoadBalancerStatus, error) {
-
+	s.clusterID = pClusterID
 	mc := lMetrics.NewMetricContext("loadbalancer", "ensure")
 	klog.InfoS("EnsureLoadBalancer", "cluster", pClusterID, "service", klog.KObj(pService))
 	status, err := s.ensureLoadBalancer(pCtx, pClusterID, pService, pNodes)
@@ -129,7 +170,7 @@ func (s *vLB) EnsureLoadBalancer(
 func (s *vLB) UpdateLoadBalancer(pCtx lCtx.Context, pClusterID string, pService *lCoreV1.Service, pNodes []*lCoreV1.Node) error {
 	klog.Infof("UpdateLoadBalancer: update load balancer for service %s/%s, the nodes are: %v",
 		pService.Namespace, pService.Name, pNodes)
-
+	s.clusterID = pClusterID
 	mc := lMetrics.NewMetricContext("loadbalancer", "update-loadbalancer")
 	klog.InfoS("UpdateLoadBalancer", "cluster", pClusterID, "service", klog.KObj(pService))
 	err := s.ensureUpdateLoadBalancer(pCtx, pClusterID, pService, pNodes)
@@ -137,6 +178,7 @@ func (s *vLB) UpdateLoadBalancer(pCtx lCtx.Context, pClusterID string, pService 
 }
 
 func (s *vLB) EnsureLoadBalancerDeleted(pCtx lCtx.Context, pClusterID string, pService *lCoreV1.Service) error {
+	s.clusterID = pClusterID
 	mc := lMetrics.NewMetricContext("loadbalancer", "ensure")
 	klog.InfoS("EnsureLoadBalancerDeleted", "cluster", pClusterID, "service", klog.KObj(pService))
 	err := s.ensureDeleteLoadBalancer(pCtx, pClusterID, pService)
@@ -220,6 +262,8 @@ func (s *vLB) ensureLoadBalancer(
 		}
 	}
 
+	s.trackLBUpdate.AddUpdateTracker(userLb.UUID, fmt.Sprintf("%s/%s", pService.Namespace, pService.Name), userLb.UpdatedAt)
+
 	// Check ports are conflict or not
 	if lbListeners, err = lListenerV2.GetBasedLoadBalancer(
 		s.vLbSC, lListenerV2.NewGetBasedLoadBalancerOpts(s.getProjectID(), userLb.UUID)); err != nil {
@@ -228,7 +272,7 @@ func (s *vLB) ensureLoadBalancer(
 	}
 
 	// If this loadbalancer has some listeners
-	if lbListeners != nil && len(lbListeners) > 0 {
+	if len(lbListeners) > 0 {
 		// Loop via the listeners of this loadbalancer to get the mapping of port and protocol
 		for i, itemListener := range lbListeners {
 			key := listenerKey{Protocol: itemListener.Protocol, Port: itemListener.ProtocolPort}
@@ -252,13 +296,11 @@ func (s *vLB) ensureLoadBalancer(
 			return nil, err
 		}
 
-		if newPool != nil {
-			// Ensure listners because of this pool change
-			_, err = s.ensureListener(userCluster, userLb.UUID, newPool.UUID, lbName, port, pService, svcConf)
-			if err != nil {
-				klog.Errorf("failed to create listener for load balancer %s: %v", userLb.UUID, err)
-				return nil, err
-			}
+		// Ensure listners because of this pool change
+		_, err = s.ensureListener(userCluster, userLb.UUID, newPool.UUID, lbName, port, pService, svcConf)
+		if err != nil {
+			klog.Errorf("failed to create listener for load balancer %s: %v", userLb.UUID, err)
+			return nil, err
 		}
 
 		klog.Infof(
@@ -452,7 +494,7 @@ func (s *vLB) ensurePool(
 
 				if lPoolV2.IsErrPoolMemberUnchanged(err) {
 					klog.Infof("pool %s for service %s has no change", userPool.Name, pService.Name)
-					return nil, nil
+					return userPool, nil
 				}
 
 				klog.Errorf("failed to update pool %s for service %s: %v", pService.Name, pService.Name, err)
@@ -460,7 +502,7 @@ func (s *vLB) ensurePool(
 			}
 		} else {
 			klog.Infof("pool %s for service %s has no change", userPool.Name, pService.Name)
-			return nil, nil
+			return userPool, nil
 		}
 	}
 
@@ -478,28 +520,52 @@ func (s *vLB) ensureListener(
 	pService *lCoreV1.Service, pServiceConfig *serviceConfig) ( // params
 	*lObjects.Listener, error) { // returns
 
-	mc := lMetrics.NewMetricContext("listener", "create")
-	newListener, err := lListenerV2.Create(s.vLbSC, lListenerV2.NewCreateOpts(
-		s.extraInfo.ProjectID,
-		pLbID,
-		&lListenerV2.CreateOpts{
-			AllowedCidrs:         pServiceConfig.allowedCIRDs,
-			DefaultPoolId:        pPoolID,
-			ListenerName:         lUtils.GenListenerAndPoolName(pCluster.ID, pService, pPort),
-			ListenerProtocol:     lUtils.ParseListenerProtocol(pPort),
-			ListenerProtocolPort: int(pPort.Port),
-			TimeoutClient:        pServiceConfig.idleTimeoutClient,
-			TimeoutMember:        pServiceConfig.idleTimeoutMember,
-			TimeoutConnection:    pServiceConfig.idleTimeoutConnection,
-		},
-	))
-
-	if mc.ObserveReconcile(err) != nil {
-		klog.Errorf("failed to create listener %s: %v", pLbName, err)
+	var userListener *lObjects.Listener = nil
+	listenerName := lUtils.GenListenerAndPoolName(pCluster.ID, pService, pPort)
+	listeners, err := lListenerV2.GetBasedLoadBalancer(s.vLbSC, lListenerV2.NewGetBasedLoadBalancerOpts(s.extraInfo.ProjectID, pLbID))
+	if err != nil {
+		klog.Errorf("failed to list listeners for load balancer %s: %v", pLbID, err)
 		return nil, err
 	}
 
-	return newListener, nil
+	for _, itemListener := range listeners {
+		if itemListener.Name == listenerName {
+			userListener = itemListener
+			break
+		}
+	}
+
+	if userListener == nil {
+		mc := lMetrics.NewMetricContext("listener", "create")
+		userListener, err = lListenerV2.Create(s.vLbSC, lListenerV2.NewCreateOpts(
+			s.extraInfo.ProjectID,
+			pLbID,
+			&lListenerV2.CreateOpts{
+				AllowedCidrs:         pServiceConfig.allowedCIRDs,
+				DefaultPoolId:        pPoolID,
+				ListenerName:         lUtils.GenListenerAndPoolName(pCluster.ID, pService, pPort),
+				ListenerProtocol:     lUtils.ParseListenerProtocol(pPort),
+				ListenerProtocolPort: int(pPort.Port),
+				TimeoutClient:        pServiceConfig.idleTimeoutClient,
+				TimeoutMember:        pServiceConfig.idleTimeoutMember,
+				TimeoutConnection:    pServiceConfig.idleTimeoutConnection,
+			},
+		))
+
+		if mc.ObserveReconcile(err) != nil {
+			klog.Errorf("failed to create listener %s: %v", pLbName, err)
+			return nil, err
+		}
+
+	}
+
+	_, err = s.waitLoadBalancerReady(pLbID)
+	if err != nil {
+		klog.Errorf("failed to wait load balancer %s for service %s: %v", pLbID, pService.Name, err)
+		return nil, err
+	}
+
+	return userListener, nil
 }
 
 func (s *vLB) createLoadBalancerStatus(addr string) *lCoreV1.LoadBalancerStatus {
@@ -553,6 +619,9 @@ func (s *vLB) ensureDeleteLoadBalancer(pCtx lCtx.Context, pClusterID string, pSe
 	}
 
 	if userLb != nil {
+		// Remove the update tracker
+		s.trackLBUpdate.RemoveUpdateTracker(userLb.UUID, fmt.Sprintf("%s/%s", pService.Namespace, pService.Name))
+
 		canDelete := s.canDeleteThisLoadBalancer(userLb, userCluster, pService)
 		if !canDelete {
 			klog.Infof(
@@ -950,7 +1019,7 @@ func (s *vLB) deleteListenersAndPools(
 		listenerName := lUtils.GenListenerAndPoolName(pCluster.ID, pService, itemPort)
 		poolID := pListener.DefaultPoolId
 
-		klog.Info("Deleting listener %s for loadbalancer %s", listenerName, pLb.UUID)
+		klog.Infof("Deleting listener %s for loadbalancer %s", listenerName, pLb.UUID)
 		if pListener.Name == listenerName {
 			if err := lListenerV2.Delete(
 				s.vLbSC, lListenerV2.NewDeleteOpts(s.getProjectID(), pLb.UUID, pListener.UUID)); err != nil {
@@ -1125,9 +1194,9 @@ func getNodeAddressForLB(pNode *lCoreV1.Node) (string, error) {
 }
 
 func prepareMembers(pNodes []*lCoreV1.Node, pPort lCoreV1.ServicePort, pServiceConfig *serviceConfig) ( // params
-	[]lPoolV2.Member, error) { // returns
+	[]*lPoolV2.Member, error) { // returns
 
-	var poolMembers []lPoolV2.Member
+	var poolMembers []*lPoolV2.Member
 	workerNodes := lUtils.ListWorkerNodes(pNodes, true)
 
 	if len(workerNodes) < 1 {
@@ -1158,7 +1227,7 @@ func prepareMembers(pNodes []*lCoreV1.Node, pPort lCoreV1.ServicePort, pServiceC
 
 		// It's 0 when AllocateLoadBalancerNodePorts=False
 		if pPort.NodePort != 0 {
-			poolMembers = append(poolMembers, lPoolV2.Member{
+			poolMembers = append(poolMembers, &lPoolV2.Member{
 				Backup:      lConsts.DEFAULT_MEMBER_BACKUP_ROLE,
 				IpAddress:   nodeAddress,
 				Port:        int(pPort.NodePort),
@@ -1190,4 +1259,41 @@ func isMemberChange(pPool *lObjects.Pool, pNodes []*lCoreV1.Node) bool {
 	}
 
 	return false
+}
+
+func (s *vLB) nodeSyncLoop() {
+	klog.Infoln("------------ nodeSyncLoop() ------------")
+	isReApply := false
+
+	lbs, err := lLoadBalancerV2.List(s.vLbSC, lLoadBalancerV2.NewListOpts(s.getProjectID()))
+	if err != nil {
+		klog.Errorf("failed to find load balancers for cluster %s: %v", s.clusterID, err)
+		return
+	}
+	reapplyIngress := s.trackLBUpdate.GetReapplyIngress(lbs)
+	if len(reapplyIngress) > 0 {
+		isReApply = true
+		klog.Infof("Detected change in load balancer update tracker")
+	}
+
+	if !isReApply {
+		return
+	}
+
+	readyWorkerNodes, err := listNodeWithPredicate(s.nodeLister, getNodeConditionPredicate())
+	if err != nil {
+		klog.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
+		return
+	}
+
+	services, err := listServiceWithPredicate(s.serviceLister, getServiceConditionPredicate())
+	if err != nil {
+		klog.Errorf("Failed to retrieve current set of services from service lister: %v", err)
+	}
+
+	for _, service := range services {
+		if _, err := s.EnsureLoadBalancer(lCtx.Background(), s.clusterID, service, readyWorkerNodes); err != nil {
+			klog.Errorf("Failed to reapply load balancer for service %s: %v", service.Name, err)
+		}
+	}
 }

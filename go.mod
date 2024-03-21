@@ -5,7 +5,6 @@ go 1.21
 require (
 	github.com/cuongpiger/joat v0.0.3
 	github.com/spf13/pflag v1.0.5
-	github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240128062127-7bb8487f0d05
 	gopkg.in/gcfg.v1 v1.2.3
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
@@ -77,6 +76,7 @@ require (
 	github.com/refraction-networking/utls v1.6.0 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
+	github.com/vngcloud/vngcloud-go-sdk v0.0.0-20240319100753-40d72148ed5d // indirect
 	go.etcd.io/etcd/api/v3 v3.5.10 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.10 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.10 // indirect
