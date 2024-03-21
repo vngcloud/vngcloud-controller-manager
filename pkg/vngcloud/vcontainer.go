@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cuongpiger/joat/utils"
-	metadata2 "github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
+	// metadata2 "github.com/vngcloud/vngcloud-controller-manager/pkg/utils/metadata"
 	vconSdkClient "github.com/vngcloud/vngcloud-go-sdk/client"
 	"github.com/vngcloud/vngcloud-go-sdk/vngcloud"
 	lK8sCore "k8s.io/api/core/v1"
@@ -20,7 +20,7 @@ type (
 	VContainer struct {
 		provider     *vconSdkClient.ProviderClient
 		vLbOpts      VLbOpts
-		metadataOpts metadata2.Opts
+		// metadataOpts metadata2.Opts
 		config       *Config
 		extraInfo    *ExtraInfo
 

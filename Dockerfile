@@ -14,7 +14,7 @@
 ##                               BUILD ARGS                                   ##
 ################################################################################
 # This build arg allows the specification of a custom Golang image.
-ARG GOLANG_IMAGE=quay.io/cuongdm8499/golang:1.21.5
+ARG GOLANG_IMAGE=golang:1.21.5
 
 # The distroless image on which the CPI manager image is built.
 #
@@ -22,14 +22,14 @@ ARG GOLANG_IMAGE=quay.io/cuongdm8499/golang:1.21.5
 # deterministic builds. Follow what kubernetes uses to build
 # kube-controller-manager, for example for 1.27.x:
 # https://github.com/kubernetes/kubernetes/blob/release-1.27/build/common.sh#L99
-ARG DISTROLESS_IMAGE=quay.io/cuongdm8499/go-runner:v2.3.1-go1.21.5-bookworm.0
+ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.21.5-bookworm.0
 
 # We use Alpine as the source for default CA certificates and some output
 # images
-ARG ALPINE_IMAGE=quay.io/cuongdm8499/alpine:3.17.5
+ARG ALPINE_IMAGE=alpine:3.17.5
 
 # cinder-csi-plugin uses Debian as a base image
-ARG DEBIAN_IMAGE=quay.io/cuongdm8499/debian-base:bullseye-v1.4.3
+ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3
 
 ################################################################################
 ##                              BUILD STAGE                                   ##
@@ -67,10 +67,10 @@ RUN make build GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOPROXY=${GOPROXY} VERSION=
 ##
 ## vngcloud-controller-manager
 ##
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as vcontainer-ccm
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as vngcloud-controller-manager
 
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
-COPY --from=builder /build/vcontainer-ccm /bin/vcontainer-ccm
+COPY --from=builder /build/vngcloud-controller-manager /bin/vngcloud-controller-manager
 
 LABEL name="vngcloud-controller-manager" \
       license="Apache Version 2.0" \

@@ -90,9 +90,9 @@ type (
 		preferredIPFamily         lCoreV1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
 		flavorID                  string
 		lbType                    lLoadBalancerV2.CreateOptsTypeOpt
-		projectID                 string
+		// projectID                 string
 		subnetID                  string
-		isOwner                   bool
+		// isOwner                   bool
 		allowedCIRDs              string
 		idleTimeoutClient         int
 		idleTimeoutMember         int
@@ -234,12 +234,12 @@ func (s *vLB) ensureLoadBalancer(
 			return nil, lErrors.NewErrConflictServiceAndCloud("the loadbalancer type of the original loadbalancer and service file are not match")
 		}
 
-		createNewLb = false
+		// createNewLb = false
 	} else {
 		// User want you to create a new loadbalancer for this service
 		klog.V(5).Infof("did not specify load balancer ID, maybe creating a new one")
-		isOwner = true
-		createNewLb = true
+		// isOwner = true
+		// createNewLb = true
 	}
 
 	// If until this step, can not find any load balancer for this cluster, find entire the project

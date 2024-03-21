@@ -58,7 +58,7 @@ func PatchService(ctx context.Context, client clientset.Interface, cur, mod *lCo
 
 func IsPoolProtocolValid(pPool *lObjects.Pool, pPort lCoreV1.ServicePort, pPoolName string) bool {
 	if pPool != nil &&
-		lStr.ToUpper(lStr.TrimSpace(pPool.Protocol)) != lStr.ToUpper(lStr.TrimSpace(string(pPort.Protocol))) &&
+		lStr.EqualFold(lStr.TrimSpace(pPool.Protocol), lStr.TrimSpace(string(pPort.Protocol))) &&
 		pPoolName == pPool.Name {
 		return false
 	}
